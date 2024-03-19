@@ -50,16 +50,17 @@ dem <- crop(dem, study_area)
 dist_water <- distance(dem, water_shp)
 dist_glac <- distance(dem, glacier_shp)
 
-# Curvature rasters
-curv_plan <- curvature(dem, type = c("planform"))
-names(curv_plan) <- c("curv_plan")
-curv_prof <- curvature(dem, type = c("profile"))
-names(curv_prof) <- c("curv_prof")
-curv_tot <- curvature(dem, type = c("total"))
-names(curv_tot) <- c("curv_tot")
+# # Curvature rasters
+# curv_plan <- curvature(dem, type = c("planform"))
+# names(curv_plan) <- c("curv_plan")
+# curv_prof <- curvature(dem, type = c("profile"))
+# names(curv_prof) <- c("curv_prof")
+# curv_tot <- curvature(dem, type = c("total"))
+# names(curv_tot) <- c("curv_tot")
+# 
+# curv_tot[curv_tot == 0] <- min(abs(curv_tot[curv_tot != 0]))/10
+# curv_tot <- log(abs(curv_tot))
 
-curv_tot[curv_tot == 0] <- min(abs(curv_tot[curv_tot != 0]))/10
-curv_tot <- log(abs(curv_tot))
 # min_lctot_pos <- min(log(curv_tot[curv_tot > 0]))
 # min_lctot_neg <- min(log(abs(curv_tot[curv_tot < 0]))) # the closest cell value to zero is negative
 # zdiff_lctot <- abs(min_lctot_pos - min_lctot_neg) # add to positive side
@@ -67,9 +68,9 @@ curv_tot <- log(abs(curv_tot))
 #                               (log(abs(curv_tot)) + abs(min_lctot_neg))
 #                               )
 
-# feat_names <- c("dem", "slope", "north_exp", "east_exp", "rough", "sol_rad", "glac_age", "vhm", "dist_water", "dist_glac")
+feat_names <- c("dem", "slope", "north_exp", "east_exp", "rough", "sol_rad", "vhm", "dist_water", "dist_glac")
 # feat_names <- c("dem", "slope", "north_exp", "east_exp", "rough", "sol_rad", "vhm", "dist_water", "dist_glac", "curv_plan", "curv_prof", "curv_tot", "log_curv_plan", "log_curv_prof", "log_curv_tot")
-feat_names <- c("dem", "slope", "north_exp", "east_exp", "rough", "sol_rad", "vhm", "dist_water", "dist_glac", "curv_tot")
+# feat_names <- c("dem", "slope", "north_exp", "east_exp", "rough", "sol_rad", "vhm", "dist_water", "dist_glac", "curv_tot")
 
 feat_list <- mget(as.character(unlist(feat_names)))
 new_feat_list <- list(dem)
@@ -81,7 +82,7 @@ features <- rast(new_feat_list)
 names(features) <- feat_names
 
 # Plot features distribution
-# svg("images/features_hist.svg")
+svg("images/features_hist.svg")
 par(mfrow = c(3, 5))
 for (i in 1:nlyr(features)) {
   hist(features[[i]], main = NULL, xlab = names(features[[i]]))
@@ -110,7 +111,7 @@ names(log_rough) <- c("log_rough")
 add(features) <- log_rough
 
 hist(log_rough)
-# dev.off()
+dev.off()
 
 # Aggregate the features and mask to study area
 features <- terra::mask(features, study_area)
@@ -192,13 +193,13 @@ dem_gen <- crop(dem_gen, study_area_gen)
 dist_water_gen <- distance(dem_gen, water_shp_gen)
 dist_glac_gen <- distance(dem_gen, glacier_shp_gen)
 
-# Curvature rastes
-curv_plan_gen <- log(curvature(dem_gen, type = c("planform")))
-curv_prof_gen <- log(curvature(dem_gen, type = c("profile")))
-curv_tot_gen <- log(curvature(dem_gen, type = c("total")))
+# # Curvature rastes
+# curv_plan_gen <- log(curvature(dem_gen, type = c("planform")))
+# curv_prof_gen <- log(curvature(dem_gen, type = c("profile")))
+# curv_tot_gen <- log(curvature(dem_gen, type = c("total")))
 
 # crei una funzione che faccia questa cosa in una riga!
-feat_names_gen <- c("dem_gen", "slope_gen", "north_exp_gen", "east_exp_gen", "rough_gen", "sol_rad_gen", "vhm_gen", "dist_water_gen", "dist_glac_gen", "curv_plan_gen", "curv_prof_gen", "curv_tot_gen")
+feat_names_gen <- c("dem_gen", "slope_gen", "north_exp_gen", "east_exp_gen", "rough_gen", "sol_rad_gen", "vhm_gen", "dist_water_gen", "dist_glac_gen")
 feat_list <- mget(as.character(unlist(feat_names_gen)))
 new_feat_list <- list(dem_gen)
 for (i in 2:length(feat_list)) {

@@ -13,7 +13,7 @@ if (!file.exists("images")) {
 # Select species ----
 # Defining the available species
 species <- c("epil_fle", "gram", "herb", "lari_dec", "moss", "rhod_fer", "salix", "shrub", "tree")
-mySpecies <- as.character("epil_fle")
+mySpecies <- as.character()
 if (length(mySpecies) == 0 || length(mySpecies) > 1){
   mySpecies <- as.character(sample(species, 1))
 }
@@ -92,7 +92,6 @@ raster_values_tun <- terra::extract(features, pa_data, df = TRUE, ID = FALSE)
 # 
 # raster_values_tun <- subset(raster_values_tun, select = -c(slope, curv))
 
-
 biomod_data_tun <- BIOMOD_FormatingData(resp.var = pa_data$occ,
                                         expl.var = raster_values_tun,
                                         resp.xy = sf::st_coordinates(pa_data),
@@ -111,13 +110,14 @@ options_tun <- BIOMOD_ModelingOptions(
   GAM = list(algo = "GAM_gam")
 )
 
+set.seed(123)
 RF_tun <- BIOMOD_Modeling(
   bm.format = biomod_data_tun,
   modeling.id = as.character(format(Sys.time(), "%y%m%d%H%M%S")),
   models = c("RF"),
   bm.options = options_tun,
   CV.strategy = "random",
-  CV.nb.rep = 5,
+  CV.nb.rep = 10,
   CV.perc = 0.8,
   var.import = 500,
   seed.val = 123)
@@ -180,9 +180,9 @@ if (round(species_npres/10,0) <= 2 | round(species_nabs/10,0) <= 2){
 # feat_sel <- feat_sel[feat_sel$var.imp.mean > 0.01,]
 
 feat_sel <- feat_sel[1:n_feat,]
+# feat_sel <- feat_sel[order(feat_sel$expl.var), ]
 
 features_mod <- features[[feat_sel$expl.var]]
-
 
 # ecospat.cor.plot(features_mod)
 # vif(features_mod)
@@ -268,7 +268,7 @@ model_out <- BIOMOD_Modeling(
   bm.options = bm.tuning$models.options,
   CV.strategy = "user.defined",
   CV.user.table = spatial_cv_folds,
-  var.import = 100,
+  var.import = 200,
   metric.eval = c("KAPPA", "ROC"),
   seed.val = 123
 )
@@ -294,6 +294,8 @@ bm_PlotEvalMean(
   xlim = c(0,1),
   ylim = c(0,1))
 ggsave(paste0("images/",paste0(mySpecies),"_eval_valid.svg"), width = 6, height = 5)
+
+# Response curves
 
 resp_curv <- bm_PlotResponseCurves(
   bm.out = model_out,
@@ -335,101 +337,87 @@ for (i in 1:n_feat) {
   }
 }
 
-resp_curve_GAM <- rbind(cbind(GAM_mean_1, GAM_max_1["pred.val.max"], GAM_min_1["pred.val.min"]),
-                        cbind(GAM_mean_2, GAM_max_2["pred.val.max"], GAM_min_2["pred.val.min"]),
-                        cbind(GAM_mean_3, GAM_max_3["pred.val.max"], GAM_min_3["pred.val.min"]))
+# Unscaling and building response curve data for plot
 
-resp_curve_GLM <- rbind(cbind(GLM_mean_1, GLM_max_1["pred.val.max"], GLM_min_1["pred.val.min"]),
+if (n_feat == 2) {
+  resp_curve_1 <- rbind(cbind(GAM_mean_1, GAM_max_1["pred.val.max"], GAM_min_1["pred.val.min"]),
+                        cbind(GLM_mean_1, GLM_max_1["pred.val.max"], GLM_min_1["pred.val.min"]),
+                        cbind(RF_mean_1, RF_max_1["pred.val.max"], RF_min_1["pred.val.min"]))
+  
+  feat_1 <- as.character(unique(resp_curve_1$expl.name))
+  resp_curve_1$expl.val <- resp_curve_1$expl.val * feat_sd[feat_1,] + feat_mean[feat_1,]
+  
+  resp_curve_2 <- rbind(cbind(GAM_mean_2, GAM_max_2["pred.val.max"], GAM_min_2["pred.val.min"]),
                         cbind(GLM_mean_2, GLM_max_2["pred.val.max"], GLM_min_2["pred.val.min"]),
-                        cbind(GLM_mean_3, GLM_max_3["pred.val.max"], GLM_min_3["pred.val.min"]))
+                        cbind(RF_mean_2, RF_max_2["pred.val.max"], RF_min_2["pred.val.min"]))
+  
+  feat_2 <- as.character(unique(resp_curve_2$expl.name))
+  resp_curve_2$expl.val <- resp_curve_2$expl.val * feat_sd[feat_2,] + feat_mean[feat_2,]
+  
+  resp_curve_df <- rbind(resp_curve_1, resp_curve_2)
+  
+  x_label_df <- data.frame(c(feat_1,feat_2),c(feat_mean[feat_1,],feat_mean[feat_2,]))
+  x_label_df <- x_label_df[order(x_label_df[,1]), ]
+  x_label <- x_label_df[,2]
+  
+} else if (n_feat == 3) {
+  resp_curve_1 <- rbind(cbind(GAM_mean_1, GAM_max_1["pred.val.max"], GAM_min_1["pred.val.min"]),
+                        cbind(GLM_mean_1, GLM_max_1["pred.val.max"], GLM_min_1["pred.val.min"]),
+                        cbind(RF_mean_1, RF_max_1["pred.val.max"], RF_min_1["pred.val.min"]))
+  
+  feat_1 <- as.character(unique(resp_curve_1$expl.name))
+  resp_curve_1$expl.val <- resp_curve_1$expl.val * feat_sd[feat_1,] + feat_mean[feat_1,]
+  
+  resp_curve_2 <- rbind(cbind(GAM_mean_2, GAM_max_2["pred.val.max"], GAM_min_2["pred.val.min"]),
+                        cbind(GLM_mean_2, GLM_max_2["pred.val.max"], GLM_min_2["pred.val.min"]),
+                        cbind(RF_mean_2, RF_max_2["pred.val.max"], RF_min_2["pred.val.min"]))
+  
+  feat_2 <- as.character(unique(resp_curve_2$expl.name))
+  resp_curve_2$expl.val <- resp_curve_2$expl.val * feat_sd[feat_2,] + feat_mean[feat_2,]
 
-resp_curve_RF <- rbind(cbind(RF_mean_1, RF_max_1["pred.val.max"], RF_min_1["pred.val.min"]),
-                        cbind(RF_mean_2, RF_max_2["pred.val.max"], RF_min_2["pred.val.min"]),
+  resp_curve_3 <- rbind(cbind(GAM_mean_3, GAM_max_3["pred.val.max"], GAM_min_3["pred.val.min"]),
+                        cbind(GLM_mean_3, GLM_max_3["pred.val.max"], GLM_min_3["pred.val.min"]),
                         cbind(RF_mean_3, RF_max_3["pred.val.max"], RF_min_3["pred.val.min"]))
+  
+  feat_3 <- as.character(unique(resp_curve_3$expl.name))
+  resp_curve_3$expl.val <- resp_curve_3$expl.val * feat_sd[feat_3,] + feat_mean[feat_3,]
+  
+  resp_curve_df <- rbind(resp_curve_1, resp_curve_2, resp_curve_3)
+  
+  x_label_df <- data.frame(c(feat_1,feat_2,feat_3),c(feat_mean[feat_1,],feat_mean[feat_2,],feat_mean[feat_3,]))
+  x_label_df <- x_label_df[order(x_label_df[,1]), ]
+  x_label <- x_label_df[,2]
+}
 
-resp_curve_df <- rbind(resp_curve_GAM, resp_curve_GLM, resp_curve_RF)
+resp_curve_df$algo <- as.character(resp_curve_df$algo)
+
+# Feature importance
+
+feat_imp <- get_variables_importance(model_out)
+feat_imp <- feat_imp[c("algo","expl.var","var.imp")]
+
+text_feat_imp <- feat_imp %>%
+  group_by(algo, expl.var) %>%
+  summarise(mean_var_imp = mean(var.imp)) %>%
+  mutate(label = paste0("Imp: ", round(mean_var_imp, 2))) %>%
+  rename(expl.name = expl.var)
+
+text_feat_imp$y <- rep(c(1, 0.97, 0.94), each=n_feat)
+text_feat_imp$x <- rep(x_label, times=3)
+text_feat_imp <- as.data.frame(text_feat_imp)
+
+# PLOT ! ! !
 
 ggplot(resp_curve_df) +
   geom_ribbon(aes(x = expl.val, ymin = pred.val.min, ymax = pred.val.max, fill = algo), alpha = 0.3) +
-  geom_line(aes(x = expl.val, y = pred.val.mean, color = algo)) +
-  facet_wrap(~ expl.name, scales = "free_x", ncol = 1) +
-  labs(x = "Expl.val", y = "Pred.val") +
-  theme_minimal()
+  geom_path(aes(x = expl.val, y = pred.val.mean, color = algo)) +
+  geom_text(data = text_feat_imp, aes(label = label, x = x, y = y, color = factor(algo)),
+            hjust=0, size=3, show.legend=FALSE) +
+  coord_cartesian(ylim=c(0,1), clip="off") +
+  facet_wrap(~ expl.name, scales = "free_x", ncol = 3) +
+  labs(x = "", y = "Probability of presence")
 
-
-
-
-
-# caret::unscale()
-
-# resp_curve_1 <- ggplot() +
-#   geom_ribbon(aes(x = GAM_mean_1$expl.val, ymin = GAM_min_1$pred.val, ymax = GAM_max_1$pred.val), fill = "#F8766D", alpha = 0.3) +
-#   geom_ribbon(aes(x = GLM_mean_1$expl.val, ymin = GLM_min_1$pred.val, ymax = GLM_max_1$pred.val), fill = "#00BA38", alpha = 0.3) +
-#   geom_ribbon(aes(x = RF_mean_1$expl.val, ymin = RF_min_1$pred.val, ymax = RF_max_1$pred.val), fill = "#619CFF", alpha = 0.3) +
-#   geom_line(aes(x=GAM_mean_1$expl.val,y=GAM_mean_1$pred.val), color = "#F8766D", alpha = 0.7) +
-#   geom_line(aes(x=GLM_mean_1$expl.val,y=GLM_mean_1$pred.val), color = "#00BA38", alpha = 0.7) +
-#   geom_line(aes(x=RF_mean_1$expl.val,y=RF_mean_1$pred.val), color = "#619CFF", alpha = 0.7) +
-#   labs(x = "Varable unit", y = "Probability of presence")
-# 
-# resp_curve_2 <- ggplot() +
-#   geom_ribbon(aes(x = GAM_mean_2$expl.val, ymin = GAM_min_2$pred.val, ymax = GAM_max_2$pred.val), fill = "#F8766D", alpha = 0.3) +
-#   geom_ribbon(aes(x = GLM_mean_2$expl.val, ymin = GLM_min_2$pred.val, ymax = GLM_max_2$pred.val), fill = "#00BA38", alpha = 0.3) +
-#   geom_ribbon(aes(x = RF_mean_2$expl.val, ymin = RF_min_2$pred.val, ymax = RF_max_2$pred.val), fill = "#619CFF", alpha = 0.3) +
-#   geom_line(aes(x=GAM_mean_2$expl.val,y=GAM_mean_2$pred.val), color = "#F8766D", alpha = 0.7) +
-#   geom_line(aes(x=GLM_mean_2$expl.val,y=GLM_mean_2$pred.val), color = "#00BA38", alpha = 0.7) +
-#   geom_line(aes(x=RF_mean_2$expl.val,y=RF_mean_2$pred.val), color = "#619CFF", alpha = 0.7) +
-#   labs(x = "Varable unit", y = "Probability of presence")
-# 
-# if (n_feat==3){
-#   resp_curve_3 <- ggplot() +
-#     geom_ribbon(aes(x = GAM_mean_3$expl.val, ymin = GAM_min_3$pred.val, ymax = GAM_max_3$pred.val), fill = "#F8766D", alpha = 0.3) +
-#     geom_ribbon(aes(x = GLM_mean_3$expl.val, ymin = GLM_min_3$pred.val, ymax = GLM_max_3$pred.val), fill = "#00BA38", alpha = 0.3) +
-#     geom_ribbon(aes(x = RF_mean_3$expl.val, ymin = RF_min_3$pred.val, ymax = RF_max_3$pred.val), fill = "#619CFF", alpha = 0.3) +
-#     geom_line(aes(x=GAM_mean_3$expl.val,y=GAM_mean_3$pred.val), color = "#F8766D", alpha = 0.7) +
-#     geom_line(aes(x=GLM_mean_3$expl.val,y=GLM_mean_3$pred.val), color = "#00BA38", alpha = 0.7) +
-#     geom_line(aes(x=RF_mean_3$expl.val,y=RF_mean_3$pred.val), color = "#619CFF", alpha = 0.7) +
-#     labs(x = "Varable unit", y = "Probability of presence")
-#   
-#   figure <- ggarrange(resp_curve_1, resp_curve_2, resp_curve_3,
-#                       labels = c(paste0(feat_sel$expl.var[1]), paste0(feat_sel$expl.var[2])),
-#                       ncol = 2, nrow = 1)
-#   figure
-# } else {
-#   figure <- ggarrange(resp_curve_1, resp_curve_2,
-#                       labels = c(paste0(feat_sel$expl.var[1]), paste0(feat_sel$expl.var[2])),
-#                       ncol = 2, nrow = 1)
-#   figure
-# }
-
-# Plot utilizzando facet_wrap
-
-print(plot)
-
-
-
-
-
-
-
-bm_PlotResponseCurves(
-  bm.out = model_out,
-  models.chosen = get_built_models(model_out, algo = "GLM"),
-  main = "Response curves for GLM")
-ggsave(paste0("images/",paste0(mySpecies),"_respc_GLM.svg"), width = 10, height = 5)
-
-
-bm_PlotResponseCurves(
-  bm.out = model_out,
-  models.chosen = get_built_models(model_out, algo = "GAM"),
-  main = "Response curves for GAM")
-ggsave(paste0("images/",paste0(mySpecies),"_respc_GAM.svg"), width = 10, height = 5)
-
-
-bm_PlotResponseCurves(
-  bm.out = model_out,
-  models.chosen = get_built_models(model_out, algo = "RF"),
-  main = "Response curves for RF")
-ggsave(paste0("images/",paste0(mySpecies),"_respc_RF.svg"), width = 10, height = 5)
+ggsave(paste0("images/",paste0(mySpecies),"_respc.svg"), width = 10, height = 5)
 
 
 # Predictions ----
@@ -447,6 +435,7 @@ model_proj <- BIOMOD_Projection(
 
 model_proj_rast <- rast(paste0("occ/proj_",paste0(mySpecies),"/proj_",paste0(mySpecies),"_occ.tif"))
 names(model_proj_rast) <- c("GLM_1", "GAM_1", "RF_1", "GLM_2", "GAM_2", "RF_2", "GLM_3", "GAM_3", "RF_3", "GLM_4", "GAM_4", "RF_4", "GLM_5", "GAM_5", "RF_5")
+
 model_proj_rast <- model_proj_rast[[sort(names(model_proj_rast))]]
 
 plot.new()
@@ -461,7 +450,7 @@ ggsave(paste0("images/",paste0(mySpecies),"_pred.svg"), width = 4, height = 6)
 
 
 ens_mod <- BIOMOD_EnsembleModeling(bm.mod = model_out,
-                                   models.chosen = "all",
+                                   models.chosen = c("occ_allData_RUN1_GLM", "occ_allData_RUN2_GLM","occ_allData_RUN3_GLM","occ_allData_RUN4_GLM","occ_allData_RUN5_GLM"),
                                    em.by = "all",
                                    em.algo = c("EMmean"),
                                    # metric.select = c("TSS"),
@@ -605,12 +594,12 @@ ggsave(ggsave(paste0("images/",paste0(mySpecies),"_roc_gen.svg"), width = 6, hei
 
 # Figures ----
 colnames(spObs)
-bp_spObs <- (spObs[ , !names(spObs) %in% c("point" , "DateTimeS", "Elevation",
+bp_spObs <- (spObs[ , !names(spObs) %in% c("point" , "bare_soil", "DateTimeS", "Elevation",
                                            "DateTime", "POINT_X", "POINT_Y", "POINT_Z")])
 presences <- colSums(bp_spObs==1)
 absences <- colSums(bp_spObs==0)
 
-bp_names <- c("Trees", "Shrubs", "Graminoids", "Herbs", "Mosses", "Bare soil",
+bp_names <- c("Trees", "Shrubs", "Graminoids", "Herbs", "Mosses",
               "Picea abies", "Betula pubescens", "Larix decidua",
               "Populus tremula", "Alnus glutinosa", "Rhododendron ferrugineum",
               "Salix", "Sorbus aucuparia", "Calluna vulgaris", "Juniperus communis",
@@ -618,7 +607,7 @@ bp_names <- c("Trees", "Shrubs", "Graminoids", "Herbs", "Mosses", "Bare soil",
               "Vaccinium vitis-idaea", "Dryas octopetala", "Epilobium angustifolium",
               "Epilobium fleischeri", "Saxifraga aizoides", "Saxifraga bryoides", 
               "Saxifraga paniculata", "Adenostyles alliariae")
-bp_df <- data.frame(matrix(nrow = 27, ncol = 3))
+bp_df <- data.frame(matrix(nrow = 26, ncol = 3))
 colnames(bp_df) <- c("Species", "Presences", "Absences")
 
 bp_df$Species <- bp_names
@@ -635,3 +624,4 @@ ggsave("images/species_npres.svg")
 
 # Ending message ----
 message("Congratulation, you modeled the distribution for ", paste0(mySpecies))
+
