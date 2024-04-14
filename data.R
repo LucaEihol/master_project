@@ -1,7 +1,11 @@
+#Master project
+#Luca Eihlzer
+
 # Load libraries ----
 list.of.packages <- c(
-  "terra", 
-  "spatialEco"
+  "ggplot2", 
+  "terra",
+  "spatialEco" # for the curvature
 )
 new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
 if(length(new.packages)) install.packages(new.packages)
@@ -51,15 +55,16 @@ dist_water <- distance(dem, water_shp)
 dist_glac <- distance(dem, glacier_shp)
 
 # Curvature rasters
-curv_plan <- curvature(dem, type = c("planform"))
-names(curv_plan) <- c("curv_plan")
-curv_prof <- curvature(dem, type = c("profile"))
-names(curv_prof) <- c("curv_prof")
+# curv_plan <- curvature(dem, type = c("planform"))
+# names(curv_plan) <- c("curv_plan")
+# curv_prof <- curvature(dem, type = c("profile"))
+# names(curv_prof) <- c("curv_prof")
 curv_tot <- curvature(dem, type = c("total"))
 names(curv_tot) <- c("curv_tot")
-
-curv_tot[curv_tot == 0] <- min(abs(curv_tot[curv_tot != 0]))/10
-curv_tot <- log(abs(curv_tot))
+# 
+# curv_tot[curv_tot == 0] <- min(abs(curv_tot[curv_tot != 0]))/10
+# curv_tot <- log(abs(curv_tot))
+#
 # min_lctot_pos <- min(log(curv_tot[curv_tot > 0]))
 # min_lctot_neg <- min(log(abs(curv_tot[curv_tot < 0]))) # the closest cell value to zero is negative
 # zdiff_lctot <- abs(min_lctot_pos - min_lctot_neg) # add to positive side
@@ -67,38 +72,38 @@ curv_tot <- log(abs(curv_tot))
 #                               (log(abs(curv_tot)) + abs(min_lctot_neg))
 #                               )
 
-# feat_names <- c("dem", "slope", "north_exp", "east_exp", "rough", "sol_rad", "glac_age", "vhm", "dist_water", "dist_glac")
-# feat_names <- c("dem", "slope", "north_exp", "east_exp", "rough", "sol_rad", "vhm", "dist_water", "dist_glac", "curv_plan", "curv_prof", "curv_tot", "log_curv_plan", "log_curv_prof", "log_curv_tot")
-feat_names <- c("dem", "slope", "north_exp", "east_exp", "rough", "sol_rad", "vhm", "dist_water", "dist_glac", "curv_tot")
+ev_names <- c("dem", "slope", "north_exp", "east_exp", "rough", "sol_rad", "vhm", "dist_water", "dist_glac")
+# ev_names <- c("dem", "slope", "north_exp", "east_exp", "rough", "sol_rad", "vhm", "dist_water", "dist_glac", "curv_plan", "curv_prof", "curv_tot", "log_curv_plan", "log_curv_prof", "log_curv_tot")
+# ev_names <- c("dem", "slope", "north_exp", "east_exp", "rough", "sol_rad", "vhm", "dist_water", "dist_glac", "curv_tot")
 
-feat_list <- mget(as.character(unlist(feat_names)))
-new_feat_list <- list(dem)
-for (i in 2:length(feat_list)) {
-  new_feat_list[[i]] <- resample(feat_list[[i]], dem, method='bilinear')
+ev_list <- mget(as.character(unlist(ev_names)))
+new_ev_list <- list(dem)
+for (i in 2:length(ev_list)) {
+  new_ev_list[[i]] <- resample(ev_list[[i]], dem, method='bilinear')
 }
 
-features <- rast(new_feat_list)
-names(features) <- feat_names
+expl_var <- rast(new_ev_list)
+names(expl_var) <- ev_names
 
-# Plot features distribution
-# svg("images/features_hist.svg")
+# Plot expl_var distribution
 par(mfrow = c(3, 5))
-for (i in 1:nlyr(features)) {
-  hist(features[[i]], main = NULL, xlab = names(features[[i]]))
+for (i in 1:nlyr(expl_var)) {
+  hist(expl_var[[i]], main = NULL, xlab = names(expl_var[[i]]))
 }
 
-# new features based on the distribution
+# logarithmic transformation
+
 vhm[vhm == 0] <- min(vhm[vhm !=0])/100
 log_vhm <- log(vhm)
 log_vhm <- resample(log_vhm, dem, method='bilinear')
 names(log_vhm) <- c("log_vhm")
-add(features) <- log_vhm
+add(expl_var) <- log_vhm
 
 hist(log_vhm)
 
-log_dist_water <- log(features$dist_water)
+log_dist_water <- log(expl_var$dist_water)
 names(log_dist_water) <- c("log_dist_water")
-add(features) <- log_dist_water
+add(expl_var) <- log_dist_water
 
 hist(log_dist_water)
 
@@ -107,22 +112,31 @@ rough[rough <= 0.1] <- 0.1
 log_rough <- log(rough)
 log_rough <- resample(log_rough, dem, method='bilinear')
 names(log_rough) <- c("log_rough")
-add(features) <- log_rough
+add(expl_var) <- log_rough
 
 hist(log_rough)
-# dev.off()
 
-# Aggregate the features and mask to study area
-features <- terra::mask(features, study_area)
+# Remove layers
+expl_var <- subset(expl_var, c("vhm", "dist_water", "rough"), negate=TRUE)
+
+# Aggregate the expl_var and mask to study area
+expl_var <- terra::mask(expl_var, study_area)
 
 # Consistency in crs
-project(features, y="epsg:2056")
+project(expl_var, y="epsg:2056")
 
-saveRDS(features, file = paste0("data/features.rds"))
+saveRDS(expl_var, file = paste0("data/expl_var.rds"))
 
-# Plot features (to be improved)
-svg("images/features.svg")
-plot(features) # visualizza la curv con un logaritmo
+# Plot expl_var (to be improved)
+png("images/expl_var.png")
+plot(expl_var) # visualizza la curv con un logaritmo
+dev.off()
+
+png("images/expl_var_hist.png")
+par(mfrow = c(3, 4))
+for (i in 1:nlyr(expl_var)) {
+  hist(expl_var[[i]], main = NULL, xlab = names(expl_var[[i]]))
+}
 dev.off()
 
 # Data processing for DVs ----
@@ -151,6 +165,39 @@ for (i in 1:length(species_names)) {
   # create object
   saveRDS(pa_data, file = paste0("data/",species_names[i],".rds"))
 }
+
+# Figure n.pres ----
+colnames(spObs)
+npres_spObs <- (spObs[ , !names(spObs) %in% c("point" , "bare_soil", "DateTimeS", "Elevation",
+                                           "DateTime", "POINT_X", "POINT_Y", "POINT_Z")])
+presences <- colSums(npres_spObs==1)
+absences <- colSums(npres_spObs==0)
+
+npres_names <- c("Trees", "Shrubs", "Graminoids", "Herbs", "Mosses",
+              "Picea abies", "Betula pubescens", "Larix decidua",
+              "Populus tremula", "Alnus glutinosa", "Rhododendron ferrugineum",
+              "Salix", "Sorbus aucuparia", "Calluna vulgaris", "Juniperus communis",
+              "Empetrum nigrum", "Vaccinium myrtillus", "Vaccinium uliginosum",
+              "Vaccinium vitis-idaea", "Dryas octopetala", "Epilobium angustifolium",
+              "Epilobium fleischeri", "Saxifraga aizoides", "Saxifraga bryoides", 
+              "Saxifraga paniculata", "Adenostyles alliariae")
+npres_df <- data.frame(matrix(nrow = 26, ncol = 3))
+colnames(npres_df) <- c("Species", "Presences", "Absences")
+
+npres_df$Species <- npres_names
+npres_df$Presences <- presences
+npres_df$Absences <- absences
+
+ggplot(data=npres_df, aes(x=reorder(Species, Presences), y=Presences)) +
+  geom_bar(stat="identity") +
+  scale_y_continuous(limits = c(0, 120), breaks = seq(0, 120, 30)) +
+  geom_text(aes(label = Presences), hjust = -0.2, colour = "black", size = 3) +
+  xlab("Species") +
+  coord_flip()
+ggsave("images/species_npres.png")
+
+npres_df$Species <- colnames(npres_spObs)
+saveRDS(npres_df, file = "data/npres_df.rds")
 
 # PREPROCESSING ANNIVIERS ----
 # Load data ----
@@ -192,41 +239,41 @@ dem_gen <- crop(dem_gen, study_area_gen)
 dist_water_gen <- distance(dem_gen, water_shp_gen)
 dist_glac_gen <- distance(dem_gen, glacier_shp_gen)
 
-# Curvature rastes
-curv_plan_gen <- log(curvature(dem_gen, type = c("planform")))
-curv_prof_gen <- log(curvature(dem_gen, type = c("profile")))
+# # Curvature rastes
+# curv_plan_gen <- log(curvature(dem_gen, type = c("planform")))
+# curv_prof_gen <- log(curvature(dem_gen, type = c("profile")))
 curv_tot_gen <- log(curvature(dem_gen, type = c("total")))
+names(curv_tot_gen) <- c("curv_tot")
 
 # crei una funzione che faccia questa cosa in una riga!
-feat_names_gen <- c("dem_gen", "slope_gen", "north_exp_gen", "east_exp_gen", "rough_gen", "sol_rad_gen", "vhm_gen", "dist_water_gen", "dist_glac_gen", "curv_plan_gen", "curv_prof_gen", "curv_tot_gen")
-feat_list <- mget(as.character(unlist(feat_names_gen)))
-new_feat_list <- list(dem_gen)
-for (i in 2:length(feat_list)) {
-  new_feat_list[[i]] <- resample(feat_list[[i]], dem_gen, method='bilinear')
+ev_names_gen <- paste0(ev_names, "_gen")
+ev_list <- mget(as.character(unlist(ev_names_gen)))
+new_ev_list <- list(dem_gen)
+for (i in 2:length(ev_list)) {
+  new_ev_list[[i]] <- resample(ev_list[[i]], dem_gen, method='bilinear')
 }
 
-features_gen <- rast(new_feat_list)
-names(features_gen) <- feat_names
+expl_var_gen <- rast(new_ev_list)
+names(expl_var_gen) <- ev_names
 
-# Plot features distribution
-# svg("images/features_hist.svg")
+# Plot expl_var distribution
 par(mfrow = c(3, 5))
-for (i in 1:nlyr(features_gen)) {
-  hist(features_gen[[i]], main = NULL, xlab = names(features[[i]]))
+for (i in 1:nlyr(expl_var_gen)) {
+  hist(expl_var_gen[[i]], main = NULL, xlab = names(expl_var[[i]]))
 }
 
-# new features based on the distribution
+# new expl_var based on the distribution
 vhm_gen[vhm_gen == 0] <- min(vhm_gen[vhm_gen !=0])/100 # same as the ferpecle vhm!
 log_vhm <- log(vhm_gen)
 log_vhm <- resample(log_vhm, dem_gen, method='bilinear')
 names(log_vhm) <- c("log_vhm")
-add(features_gen) <- log_vhm
+add(expl_var_gen) <- log_vhm
 
 hist(log_vhm)
 
-log_dist_water <- log(features_gen$dist_water)
+log_dist_water <- log(expl_var_gen$dist_water)
 names(log_dist_water) <- c("log_dist_water")
-add(features_gen) <- log_dist_water
+add(expl_var_gen) <- log_dist_water
 
 hist(log_dist_water)
 
@@ -235,21 +282,31 @@ rough_gen[rough_gen <= 0.1] <- 0.1
 log_rough <- log(rough_gen)
 log_rough <- resample(log_rough, dem_gen, method='bilinear')
 names(log_rough) <- c("log_rough")
-add(features_gen) <- log_rough
+add(expl_var_gen) <- log_rough
 
 hist(log_rough)
 
-# Aggregate the features and mask to study area
-features_gen <- terra::mask(features_gen, study_area_gen)
+# Remove layers
+expl_var_gen <- subset(expl_var_gen, c("vhm", "dist_water", "rough"), negate=TRUE)
+
+# Aggregate the expl_var and mask to study area
+expl_var_gen <- terra::mask(expl_var_gen, study_area_gen)
 
 # Consistency in crs
-project(features_gen, y="epsg:2056")
+project(expl_var_gen, y="epsg:2056")
 
-saveRDS(features_gen, file = paste0("data/features_gen.rds"))
+saveRDS(expl_var_gen, file = paste0("data/expl_var_gen.rds"))
 
-# Plot features (to be improved)
-svg("images/features_gen.svg")
-plot(features_gen) # visualizza la curv con un logaritmo
+# Plot expl_var (to be improved)
+png("images/expl_var_gen.png")
+plot(expl_var_gen) # visualizza la curv con un logaritmo
+dev.off()
+
+png("images/expl_var_gen_hist.png")
+par(mfrow = c(3, 5))
+for (i in 1:nlyr(expl_var_gen)) {
+  hist(expl_var_gen[[i]], main = NULL, xlab = names(expl_var[[i]]))
+}
 dev.off()
 
 # Data processing for DVs ----
