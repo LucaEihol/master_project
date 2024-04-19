@@ -4,7 +4,7 @@
 # Select species ----
 # Defining the available species
 species <- c("betu_pub", "epil_fle", "lari_dec", "rhod_fer", "salix", "shrub", "tree")
-mySpecies <- as.character()
+mySpecies <- as.character("shrub")
 if (length(mySpecies) == 0 || length(mySpecies) > 1){
   mySpecies <- as.character(sample(species, 1))
 }
@@ -54,11 +54,6 @@ list.of.packages <- c(
 new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
 if(length(new.packages)) install.packages(new.packages)
 lapply(list.of.packages, require, character.only = TRUE)
-# remotes::install_github("coolbutuseless/ggsvg")
-if(!require("ggsvg")){
-  remotes::install_github("coolbutuseless/ggsvg")
-}
-library("ggsvg")
 (.packages())
 
 # Load data ----
@@ -75,29 +70,18 @@ ev_mean <- global(expl_var, "mean", na.rm=TRUE)
 ev_sd <- global(expl_var, "sd", na.rm=TRUE)
 expl_var <- terra::scale(expl_var)
 
-# ev_min <- global(expl_var, "min", na.rm=TRUE)
-# ev_max <- global(expl_var, "max", na.rm=TRUE)
-# expl_var <- (expl_var - ev_min[,1])/(ev_max[,1]-ev_min[,1])
-# 
-# 
-# 
-# # Scaling (Standardization)
+# Scaling (Standardization)
 expl_var_gen <- terra::scale(expl_var_gen, center=ev_mean[,1], scale=ev_sd[,1])
 
 # Predictor selection ----
 # Formatting Data
 raster_values_tun <- terra::extract(expl_var, pa_data, df = TRUE, ID = FALSE)
 
-# vif(raster_values_tun, size = nrow(raster_values_tun))
-# 
-# raster_values_tun <- subset(raster_values_tun, select = -c(slope, curv))
-
 biomod_data_tun <- BIOMOD_FormatingData(resp.var = pa_data$occ,
                                         expl.var = raster_values_tun,
                                         resp.xy = sf::st_coordinates(pa_data),
                                         resp.name = "occ",
                                         na.rm = TRUE)
-
 
 options_tun <- BIOMOD_ModelingOptions(
   RF = list(do.classif = TRUE,
@@ -218,42 +202,6 @@ raster_values <- terra::extract(expl_var_mod, pa_data, df = TRUE, ID = FALSE)
 head(raster_values)
 str(raster_values)
 
-
-# Tuning ----
-# 
-biomod_data <- BIOMOD_FormatingData(resp.var = pa_data$occ,
-                                    expl.var = raster_values,
-                                    resp.xy = sf::st_coordinates(pa_data),
-                                    resp.name = "occ",
-                                    na.rm = TRUE)
-# caret::trainControl(method="cv", 
-#              repeats = NA, 
-#              summaryFunction = "twoClassSummary", 
-#              classProbs = TRUE, 
-#              returnData = FALSE,
-#              number = 5)
-# 
-# bm_tuning <- BIOMOD_Tuning(
-#   biomod_data,
-#   bm.options = options_tun,
-#   models = c("RF"),
-#   metric.eval = c("ROC"),
-#   ctrl.train = caret::trainControl(method="cv", 
-#                             repeats = NA, 
-#                             summaryFunction = caret::twoClassSummary, 
-#                             classProbs = TRUE, 
-#                             returnData = FALSE,
-#                             number = 5),
-#   ctrl.train.tuneLength = 30,
-#   GLM.method = "glm", # keep it simple no stepwise AIC or BIC
-#   GLM.type = c("simple", "quadratic", "polynomial", "s_smoother"),
-#   GLM.interaction = c(0, 1),
-#   GAM.method = "gam",
-#   RF.method = "rf"
-# )
-# 
-# print(bm_tuning)
-
 # Spatial cross-validation ----
 
 scv <- cv_spatial(
@@ -262,8 +210,6 @@ scv <- cv_spatial(
   r = expl_var,
   k = 5,
   hexagon = FALSE,
-  # flat_top = FALSE, #Creating hexagonal blocks with topped flat(?)
-  # size = 650,
   rows_cols = c(10,1),
   selection = "random",
   iteration = 999,
@@ -292,7 +238,8 @@ options <- BIOMOD_ModelingOptions(
               sampsize = NULL,
               maxnodes = 15),
   
-  GAM = list( algo = "GAM_gam")
+  GAM = list( algo = "GAM_gam",
+              interaction.level = 1)
 )
 
 # Delete occ folder with previous models
@@ -347,8 +294,6 @@ ggsave(paste0("images/",paste0(mySpecies),"_pred.png"), width = 4, height = 6)
 
 
 ens_mod <- BIOMOD_EnsembleModeling(bm.mod = model_out,
-                                   # models.chosen = c("occ_allData_RUN1_GLM", "occ_allData_RUN2_GLM","occ_allData_RUN3_GLM","occ_allData_RUN4_GLM","occ_allData_RUN5_GLM"),
-                                                     # "occ_allData_RUN1_RF", "occ_allData_RUN2_RF","occ_allData_RUN3_RF","occ_allData_RUN4_RF","occ_allData_RUN5_RF"),
                                    models.chosen = "all",
                                    em.by = "all",
                                    em.algo = c("EMmean"),

@@ -4,8 +4,7 @@
 # Load libraries ----
 list.of.packages <- c(
   "ggplot2", 
-  "terra",
-  "spatialEco" # for the curvature
+  "terra"
 )
 new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
 if(length(new.packages)) install.packages(new.packages)
@@ -27,9 +26,6 @@ aspect <- terrain(dem, v = "aspect", unit = "radians", neighbors = 8)
 north_exp <- sin(slope)*cos(aspect) 
 east_exp <- sin(slope)*sin(aspect)
 rough <- terrain(dem, v = "roughness", unit = "radians", neighbors = 8)
-# curv <- rast("data_row/curv.tif")
-# glac_age_shp <- vect("data_row/glacier_age_mod.shp") #modified geometry for the 1850 limit because one plot was not included in it
-# glac_age <- rasterize(glac_age_shp, dem, field = "Age")
 vhm <- project(rast("data_row/VHM_ferp.tif"), y = "epsg:2056")
 water_shp <- vect("data_row/rivers_lakes.shp")
 water_shp <- project(water_shp, y = "epsg:2056")
@@ -54,27 +50,7 @@ dem <- crop(dem, study_area)
 dist_water <- distance(dem, water_shp)
 dist_glac <- distance(dem, glacier_shp)
 
-# Curvature rasters
-# curv_plan <- curvature(dem, type = c("planform"))
-# names(curv_plan) <- c("curv_plan")
-# curv_prof <- curvature(dem, type = c("profile"))
-# names(curv_prof) <- c("curv_prof")
-curv_tot <- curvature(dem, type = c("total"))
-names(curv_tot) <- c("curv_tot")
-# 
-# curv_tot[curv_tot == 0] <- min(abs(curv_tot[curv_tot != 0]))/10
-# curv_tot <- log(abs(curv_tot))
-#
-# min_lctot_pos <- min(log(curv_tot[curv_tot > 0]))
-# min_lctot_neg <- min(log(abs(curv_tot[curv_tot < 0]))) # the closest cell value to zero is negative
-# zdiff_lctot <- abs(min_lctot_pos - min_lctot_neg) # add to positive side
-# curv_tot_mod <- terra::ifel(curv_tot > 0, -(log(curv_tot) + abs(min_lctot_pos) + zdiff_lctot),
-#                               (log(abs(curv_tot)) + abs(min_lctot_neg))
-#                               )
-
 ev_names <- c("dem", "slope", "north_exp", "east_exp", "rough", "sol_rad", "vhm", "dist_water", "dist_glac")
-# ev_names <- c("dem", "slope", "north_exp", "east_exp", "rough", "sol_rad", "vhm", "dist_water", "dist_glac", "curv_plan", "curv_prof", "curv_tot", "log_curv_plan", "log_curv_prof", "log_curv_tot")
-# ev_names <- c("dem", "slope", "north_exp", "east_exp", "rough", "sol_rad", "vhm", "dist_water", "dist_glac", "curv_tot")
 
 ev_list <- mget(as.character(unlist(ev_names)))
 new_ev_list <- list(dem)
@@ -153,15 +129,16 @@ saveRDS(spObs, file = "data/spObs.rds")
 for (i in 1:length(species_names)) {
   # Create a new dataframe for each species
   assign("new_df", spObs[c(paste0(species_names[i]), "POINT_X", "POINT_Y", "point")])
-  # call it as a new df
-  # new_df <- get(paste0(species_names[i]))
+  
   # shuffle
   new_df <- new_df[sample(nrow(new_df), nrow(new_df)), ]
+  
   # Rename the columns of the new dataframes
   colnames(new_df) <- c("occ", "x", "y", "ID")
   
   # Convert to sf
   pa_data <- sf::st_as_sf(new_df, coords = c("x", "y"), crs = "epsg:2056")
+  
   # create object
   saveRDS(pa_data, file = paste0("data/",species_names[i],".rds"))
 }
@@ -212,9 +189,6 @@ aspect_gen <- terrain(dem_gen , v = "aspect", unit = "radians", neighbors = 8)
 north_exp_gen <- sin(slope_gen)*cos(aspect_gen) 
 east_exp_gen <- sin(slope_gen)*sin(aspect_gen)
 rough_gen <- terrain(dem_gen , v = "roughness", unit = "radians", neighbors = 8)
-# curv_gen <- rast("data_row/curv_anni.tif")
-# glac_age_shp_gen <- vect("data_row/glacier_age_anni.shp")
-# glac_age_gen <- rasterize(glac_age_shp_gen, dem_gen , field = "Age")
 vhm_gen <- project(rast("data_row/VHM_anni.tif"), y = "epsg:2056")
 water_shp_gen <- vect("data_row/rivers_lakes_anni.shp")
 water_shp_gen <- project(water_shp_gen, y = "epsg:2056")
@@ -238,12 +212,6 @@ dem_gen <- crop(dem_gen, study_area_gen)
 # Euclidean distance rasters
 dist_water_gen <- distance(dem_gen, water_shp_gen)
 dist_glac_gen <- distance(dem_gen, glacier_shp_gen)
-
-# # Curvature rastes
-# curv_plan_gen <- log(curvature(dem_gen, type = c("planform")))
-# curv_prof_gen <- log(curvature(dem_gen, type = c("profile")))
-curv_tot_gen <- log(curvature(dem_gen, type = c("total")))
-names(curv_tot_gen) <- c("curv_tot")
 
 # crei una funzione che faccia questa cosa in una riga!
 ev_names_gen <- paste0(ev_names, "_gen")
@@ -320,8 +288,7 @@ spObs_gen[species_names] <- ifelse(spObs_gen[species_names] != 0, 1, 0)
 for (i in 1:length(species_names)) {
   # Create a new dataframe for each species
   assign("new_df", spObs_gen[c(paste0(species_names[i]), "POINT_X", "POINT_Y", "point")])
-  # call it as a new df
-  # new_df <- get(paste0(species_names[i]))
+
   # shuffle
   new_df <- new_df[sample(nrow(new_df), nrow(new_df)), ]
   # Rename the columns of the new dataframes
@@ -329,7 +296,31 @@ for (i in 1:length(species_names)) {
   
   # Convert to sf
   pa_data <- sf::st_as_sf(new_df, coords = c("x", "y"), crs = "epsg:2056")
+  
   # create object
   saveRDS(pa_data, file = paste0("data/",species_names[i],"_gen.rds"))
 }
 
+
+# Comparing study areas ----
+
+ev_min <- global(expl_var, "min", na.rm=TRUE)
+ev_max <- global(expl_var, "max", na.rm=TRUE)
+ev_mean <- global(expl_var, "mean", na.rm=TRUE)
+ev_sd <- global(expl_var, "sd", na.rm=TRUE)
+
+ev_min_gen <- global(expl_var_gen, "min", na.rm=TRUE)
+ev_max_gen <- global(expl_var_gen, "max", na.rm=TRUE)
+ev_mean_gen <- global(expl_var_gen, "mean", na.rm=TRUE)
+ev_sd_gen <- global(expl_var_gen, "sd", na.rm=TRUE)
+
+sas_df <- cbind(ev_min, ev_min_gen, ev_max, ev_max_gen, ev_mean, ev_mean_gen)
+
+# undo logarithmic transformation
+sas_df[c("log_vhm", "log_dist_water", "log_rough"),] <- exp(sas_df[c("log_vhm", "log_dist_water", "log_rough"),])
+
+sas_df <- round(sas_df,2)
+colnames(sas_df) <- c("min.FV", "min.AV", "max.FV", "max.AV", "mean.FV", "mean.AV")
+rownames(sas_df) <- c("Elevation","Slope", "North exposure", "East exposure", "Solar radiation", "Distance from glacier", "Vegetation heigh", "Distance from water", "Roughness")
+
+write.csv(sas_df, file = "data/sas_comp.csv")
