@@ -54,12 +54,16 @@ list.of.packages <- c(
 new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
 if(length(new.packages)) install.packages(new.packages)
 lapply(list.of.packages, require, character.only = TRUE)
+# remotes::install_github("coolbutuseless/ggsvg")
+if(!require("ggsvg")){
+  remotes::install_github("coolbutuseless/ggsvg")
+}
+library("ggsvg")
 (.packages())
 
 # Load data ----
 setwd("C:/Users/Luca/Documents/_UNIL_/_MP/model")
 
-# npres_df <- readRDS("data/npres_df.rds")
 pa_data <- readRDS(paste0("data/",mySpecies,".rds"))
 pa_data_gen <- readRDS(paste0("data/",mySpecies,"_gen.rds"))
 expl_var <- readRDS("data/expl_var.rds")
@@ -69,21 +73,20 @@ expl_var_gen <- readRDS("data/expl_var_gen.rds")
 ev_mean <- global(expl_var, "mean", na.rm=TRUE)
 ev_sd <- global(expl_var, "sd", na.rm=TRUE)
 expl_var <- terra::scale(expl_var)
-
-# Scaling (Standardization)
 expl_var_gen <- terra::scale(expl_var_gen, center=ev_mean[,1], scale=ev_sd[,1])
 
 # Predictor selection ----
-# Formatting Data
-raster_values_tun <- terra::extract(expl_var, pa_data, df = TRUE, ID = FALSE)
+# Formatting data
+raster_values_sel <- terra::extract(expl_var, pa_data, df = TRUE, ID = FALSE)
 
-biomod_data_tun <- BIOMOD_FormatingData(resp.var = pa_data$occ,
-                                        expl.var = raster_values_tun,
+biomod_data_sel <- BIOMOD_FormatingData(resp.var = pa_data$occ,
+                                        expl.var = raster_values_sel,
                                         resp.xy = sf::st_coordinates(pa_data),
                                         resp.name = "occ",
                                         na.rm = TRUE)
 
-options_tun <- BIOMOD_ModelingOptions(
+# Set random forest hyperparameters for selection
+options_sel <- BIOMOD_ModelingOptions(
   RF = list(do.classif = TRUE,
             ntree = 50,
             mtry = "default",
@@ -94,12 +97,12 @@ options_tun <- BIOMOD_ModelingOptions(
   GAM = list(algo = "GAM_gam")
 )
 
-set.seed(123)
-RF_tun <- BIOMOD_Modeling(
-  bm.format = biomod_data_tun,
+# Model fitting for selection
+RF_sel <- BIOMOD_Modeling(
+  bm.format = biomod_data_sel,
   modeling.id = as.character(format(Sys.time(), "%y%m%d%H%M%S")),
   models = c("RF"),
-  bm.options = options_tun,
+  bm.options = options_sel,
   CV.strategy = "random",
   CV.nb.rep = 10,
   CV.perc = 0.8,
@@ -107,22 +110,26 @@ RF_tun <- BIOMOD_Modeling(
   var.import = 500,
   seed.val = 123)
 
-var_imp <- as.data.frame(get_variables_importance(RF_tun))
+# Get variable importance
+var_imp <- as.data.frame(get_variables_importance(RF_sel))
 ev_mod_name <- unique(var_imp$expl.var)
 
 # Correlation matrix
-df_cor <- data.frame(round(cor(raster_values_tun),3))
+df_cor <- data.frame(round(cor(raster_values_sel),3))
 
 # Transform the correlation matrix into a distance matrix
 cor.clust <- hclust(as.dist(1-abs(df_cor)))
+
 # Plot those distances as a tree
 png("images/clust_corr.png")
 par(mfrow = c(1, 1), mar=c(1, 4, 2, 1))
 plot(cor.clust, main="", ylab=expression(paste("Height as 1-|", rho, "|")))
+
 # Add a red line at the threshold value (distance of 0.3)
 abline(h=0.3, lty=2, col="red", lwd=2)
 dev.off()
 
+# Variable importance mean data.frame
 var_imp_mean <-  data.frame(matrix(nrow = length(ev_mod_name), ncol = 1))
 rownames(var_imp_mean) <- ev_mod_name
 colnames(var_imp_mean) <- c("var.imp.mean")
@@ -134,6 +141,7 @@ for (i in 1:length(df_cor)){
 ev_sel <- data.frame(matrix(nrow = length(df_cor), ncol = 1))
 colnames(ev_sel) <- c("expl.var")
 
+# Variable selection
 for (i in 1:length(df_cor)) {
   
   ev_name <- rownames(df_cor)[which(abs(df_cor[,i]) > 0.7)]
@@ -151,7 +159,7 @@ for (i in 1:length(df_cor)) {
 
 ev_sel <- unique(ev_sel)
 
-# repeat selection in case variables are still correlated
+# Repeat selection in case variables are still correlated
 df_cor <- df_cor[ev_sel$expl.var,ev_sel$expl.var,drop=FALSE]
 var_imp_mean <- var_imp_mean[ev_sel$expl.var,,drop=FALSE]
 
@@ -180,16 +188,14 @@ ev_sel <- ev_sel[order(ev_sel$var.imp.mean, decreasing = TRUE),]
 species_npres <- sum(pa_data$occ == 1)
 species_nabs <- sum(pa_data$occ == 0)
 
+# Conditional decision based on prevalence
 if (round(species_npres/10,0) <= 2 | round(species_nabs/10,0) <= 2){
   n_ev <- 2
 } else {
   n_ev <- 3
 }
 
-# ev_sel <- ev_sel[ev_sel$var.imp.mean > 0.01,]
-
 ev_sel <- ev_sel[1:n_ev,]
-# ev_sel <- ev_sel[order(ev_sel$expl.var), ]
 
 expl_var_mod <- expl_var[[ev_sel$expl.var]]
 
@@ -220,8 +226,6 @@ scv <- cv_spatial(
   plot = TRUE
 )
 
-# leave one out
-
 ggsave("images/spat_cv.png")
 
 # Defining the folds for data.split.table
@@ -229,6 +233,12 @@ spatial_cv_folds <- as.data.frame(scv$biomod_table)
 colnames(spatial_cv_folds) <- c("_allData_RUN1", "_allData_RUN2", "_allData_RUN3", "_allData_RUN4", "_allData_RUN5")
 
 # Model fitting ----
+
+biomod_data <- BIOMOD_FormatingData(resp.var = pa_data$occ,
+                                    expl.var = raster_values,
+                                    resp.xy = sf::st_coordinates(pa_data),
+                                    resp.name = "occ",
+                                    na.rm = TRUE)
 
 options <- BIOMOD_ModelingOptions(
   GLM = list( test = "none" ),
@@ -573,7 +583,7 @@ ggplot(resp_curve_df) +
   facet_wrap(~ expl.name, scales = "free_x", ncol = 3) +
   labs(x = "", y = "Probability of presence")
 
-ggsave(paste0("images/",paste0(mySpecies),"_respc.png"), width = 10, height = 5)
+ggsave(paste0("images/",paste0(mySpecies),"_respc.png"), width = 15, unit = c("cm"))
 
 # ROC curve for the generalisation
 
