@@ -171,7 +171,7 @@ ggplot(data=npres_df, aes(x=reorder(Species, Presences), y=Presences)) +
   geom_text(aes(label = Presences), hjust = -0.2, colour = "black", size = 3) +
   xlab("Species") +
   coord_flip()
-ggsave("images/species_npres.png")
+ggsave("images/species_npres.png", width = 15, height =10, unit = c("cm"))
 
 npres_df$Species <- colnames(npres_spObs)
 saveRDS(npres_df, file = "data/npres_df.rds")

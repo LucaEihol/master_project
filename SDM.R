@@ -4,7 +4,7 @@
 # Select species ----
 # Defining the available species
 species <- c("betu_pub", "epil_fle", "lari_dec", "rhod_fer", "salix", "shrub", "tree")
-mySpecies <- as.character("shrub")
+mySpecies <- as.character()
 if (length(mySpecies) == 0 || length(mySpecies) > 1){
   mySpecies <- as.character(sample(species, 1))
 }
@@ -92,10 +92,8 @@ options_sel <- BIOMOD_ModelingOptions(
             mtry = "default",
             sampsize = NULL,
             nodesize = 5,
-            maxnodes = 15),
-  
-  GAM = list(algo = "GAM_gam")
-)
+            maxnodes = 15)
+  )
 
 # Model fitting for selection
 RF_sel <- BIOMOD_Modeling(
@@ -103,9 +101,10 @@ RF_sel <- BIOMOD_Modeling(
   modeling.id = as.character(format(Sys.time(), "%y%m%d%H%M%S")),
   models = c("RF"),
   bm.options = options_sel,
-  CV.strategy = "random",
-  CV.nb.rep = 10,
+  CV.strategy = "kfold",
+  CV.nb.rep = 3,
   CV.perc = 0.8,
+  CV.k = 5,
   metric.eval = c("TSS", "ROC"),
   var.import = 500,
   seed.val = 123)
@@ -226,7 +225,7 @@ scv <- cv_spatial(
   plot = TRUE
 )
 
-ggsave("images/spat_cv.png")
+ggsave("images/spat_cv.png", width = 10, height =11, unit = c("cm"))
 
 # Defining the folds for data.split.table
 spatial_cv_folds <- as.data.frame(scv$biomod_table)
@@ -300,7 +299,7 @@ ggplot() +
                        limits = c(0, 1),
                        breaks = c(0,0.25,0.5,0.75,1)) +
   theme_void()
-ggsave(paste0("images/",paste0(mySpecies),"_pred.png"), width = 4, height = 6)
+ggsave(paste0("images/",paste0(mySpecies),"_pred.png"),  height = 15, width = 12, unit = c("cm"))
 
 
 ens_mod <- BIOMOD_EnsembleModeling(bm.mod = model_out,
@@ -357,7 +356,7 @@ ggplot() +
                    pad_y = unit(3, "mm"),) +
   annotate("text", x=2608700, y=1098600, label= "Glacier")
 
-ggsave(paste0("images/",paste0(mySpecies),"_ens_mod.png"), width = 4, height = 6)
+ggsave(paste0("images/",paste0(mySpecies),"_ens_mod.png"), height = 15, width = 15, unit = c("cm"))
 
 # Generalization ----
 # extract the raster values for the species points as a dataframe
@@ -387,7 +386,7 @@ ggplot() +
                        limits = c(0, 1),
                        breaks = c(0,0.25,0.5,0.75,1)) +
   theme_void()
-ggsave(paste0("images/",paste0(mySpecies),"_pred_gen.png"), width = 4, height = 6)
+ggsave(paste0("images/",paste0(mySpecies),"_pred_gen.png"), height = 15, width = 12, unit = c("cm"))
 
 ens_mod_proj_gen <- BIOMOD_EnsembleForecasting(bm.em = ens_mod,
                                                bm.proj = model_proj_gen,
@@ -427,7 +426,7 @@ ggplot() +
                    pad_y = unit(15, "mm"),) +
   annotate("text", x=2615050, y=1103200, label= "Glacier")
 
-ggsave(paste0("images/",paste0(mySpecies),"_ens_mod_gen.png"), width = 4, height = 6)
+ggsave(paste0("images/",paste0(mySpecies),"_ens_mod_gen.png"), height = 15, width = 15, unit = c("cm"))
 
 # Evaluation ----
 
@@ -440,7 +439,9 @@ bm_PlotEvalMean(
   do.plot = TRUE,
   xlim = c(0,1),
   ylim = c(0,1))
-ggsave(paste0("images/",paste0(mySpecies),"_eval_calib.png"), width = 6, height = 5)
+ggsave(plot = last_plot() + labs(x = "AUC"),
+       paste0("images/",paste0(mySpecies),"_eval_calib.png"), 
+       height = 12, width = 15, unit = c("cm"))
 
 bm_PlotEvalMean(
   bm.out = model_out,
@@ -449,7 +450,9 @@ bm_PlotEvalMean(
   do.plot = TRUE,
   xlim = c(0,1),
   ylim = c(0,1))
-ggsave(paste0("images/",paste0(mySpecies),"_eval_valid.png"), width = 6, height = 5)
+ggsave(plot = last_plot() + labs(x = "AUC"),
+       paste0("images/",paste0(mySpecies),"_eval_valid.png"),
+       height = 12, width = 15, unit = c("cm"))
 
 # Response curves
 
@@ -567,7 +570,7 @@ text_ev_imp <- ev_imp %>%
   mutate(label = paste0("Imp: ", round(mean_var_imp, 2))) %>%
   rename(expl.name = expl.var)
 
-text_ev_imp$y <- rep(c(0.3, 0.27, 0.24), each=n_ev)
+text_ev_imp$y <- rep(c(0.3, 0.25, 0.20), each=n_ev)
 text_ev_imp$x <- rep(x_label, times=3)
 text_ev_imp <- as.data.frame(text_ev_imp)
 
@@ -583,7 +586,7 @@ ggplot(resp_curve_df) +
   facet_wrap(~ expl.name, scales = "free_x", ncol = 3) +
   labs(x = "", y = "Probability of presence")
 
-ggsave(paste0("images/",paste0(mySpecies),"_respc.png"), width = 15, unit = c("cm"))
+ggsave(paste0("images/",paste0(mySpecies),"_respc.png"), height = 10, width = 15, unit = c("cm"))
 
 # ROC curve for the generalisation
 
@@ -596,7 +599,8 @@ ggplot() +
   scale_x_reverse() +
   labs(x = "Specificity", y = "Sensitivity") +
   annotate("text", x = .5, y = .5, label = paste0('AUC: ', round(roc$auc,2)), size = 5)
-ggsave(ggsave(paste0("images/",paste0(mySpecies),"_roc_gen.png"), width = 6, height = 6))
+
+ggsave(paste0("images/",paste0(mySpecies),"_roc_gen.png"), height = 15, width = 15, unit = c("cm"))
 
 # Results tabs ----
 
