@@ -21,8 +21,7 @@ if (!file.exists("images")) {
 
 # Load libraries ----
 list.of.packages <- c(
-  "gridExtra",
-  "biomod2", 
+  # "biomod2",
   "blockCV", 
   "caret", 
   "dplyr", 
@@ -31,6 +30,7 @@ list.of.packages <- c(
   "ggimage", 
   "ggplot2", 
   "ggtext", 
+  "gridExtra",
   "grImport2",
   "ggspatial", 
   "Hmisc", 
@@ -54,15 +54,18 @@ list.of.packages <- c(
 new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
 if(length(new.packages)) install.packages(new.packages)
 lapply(list.of.packages, require, character.only = TRUE)
-# remotes::install_github("coolbutuseless/ggsvg")
+
 if(!require("ggsvg")){
   remotes::install_github("coolbutuseless/ggsvg")
 }
 library("ggsvg")
+
+install.packages("biomod2_4.2-4.tar.gz", repos = NULL, type = "source")
+library(biomod2)
 (.packages())
 
 # Load data ----
-setwd("C:/Users/Luca/Documents/_UNIL_/_MP/model")
+# setwd("C:/path/to/model)
 
 pa_data <- readRDS(paste0("data/",mySpecies,".rds"))
 pa_data_gen <- readRDS(paste0("data/",mySpecies,"_gen.rds"))
@@ -197,9 +200,6 @@ if (round(species_npres/10,0) <= 2 | round(species_nabs/10,0) <= 2){
 ev_sel <- ev_sel[1:n_ev,]
 
 expl_var_mod <- expl_var[[ev_sel$expl.var]]
-
-# ecospat.cor.plot(expl_var_mod)
-# vif(expl_var_mod)
 
 # extract the raster values for the species points as a dataframe
 raster_values <- terra::extract(expl_var_mod, pa_data, df = TRUE, ID = FALSE)
@@ -497,7 +497,6 @@ for (i in 1:n_ev) {
 }
 
 # Unscaling and building response curve data for plot
-
 if (n_ev == 2) {
   resp_curve_1 <- rbind(cbind(GAM_mean_1, GAM_max_1["pred.val.max"], GAM_min_1["pred.val.min"]),
                         cbind(GLM_mean_1, GLM_max_1["pred.val.max"], GLM_min_1["pred.val.min"]),
@@ -560,7 +559,6 @@ x_label_df[rows_to_transform,2] <- exp(x_label_df[rows_to_transform,2])
 x_label <- x_label_df[,2]
 
 # Variable importance
-
 ev_imp <- get_variables_importance(model_out)
 ev_imp <- ev_imp[c("algo","expl.var","var.imp")]
 
@@ -589,7 +587,6 @@ ggplot(resp_curve_df) +
 ggsave(paste0("images/",paste0(mySpecies),"_respc.png"), height = 10, width = 15, unit = c("cm"))
 
 # ROC curve for the generalisation
-
 roc <- roc(pa_data_gen$occ, pa_proj_gen[,1])
 roc_df <- data.frame(roc$specificities, roc$sensitivities)
 names(roc_df) <- c("spec", "sens")
@@ -607,7 +604,6 @@ ggsave(paste0("images/",paste0(mySpecies),"_roc_gen.png"), height = 15, width = 
 PRE <- round(species_npres/120, 2)
 
 # For the single models 
-
 metrics <- data.frame(get_evaluations(model_out)) %>%
   group_by(algo, metric.eval) %>%
   summarise(across(where(is.numeric), ~ round(mean(.), 2))) %>%
@@ -649,7 +645,6 @@ results_models <- as.data.frame(t(results_models))
 write.csv(results_models, file = "data/results_models.csv")
 
 # For the ensamble modelling¨
-
 metrics <- data.frame(get_evaluations(ens_mod)) %>%
   select(metric.eval, calibration, sensitivity, specificity) %>%
   arrange(metric.eval) %>%
