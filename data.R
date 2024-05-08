@@ -1,6 +1,15 @@
 #Master project
 #Luca Eihlzer
 
+# Ensure that folder "images" exist ----
+if (!file.exists("images")) {
+  # If it doesn't exist, create it
+  dir.create("images")
+  print("The 'images' folder has been created.")
+} else {
+  print("The 'images' folder already exists.")
+}
+
 # Load libraries ----
 list.of.packages <- c(
   "ggplot2", 
@@ -103,9 +112,9 @@ project(expl_var, y="epsg:2056")
 
 saveRDS(expl_var, file = paste0("data/expl_var.rds"))
 
-# Plot expl_var (to be improved)
+# Plot expl_var
 png("images/expl_var.png")
-plot(expl_var) # visualizza la curv con un logaritmo
+plot(expl_var)
 dev.off()
 
 png("images/expl_var_hist.png")
@@ -265,9 +274,9 @@ project(expl_var_gen, y="epsg:2056")
 
 saveRDS(expl_var_gen, file = paste0("data/expl_var_gen.rds"))
 
-# Plot expl_var (to be improved)
+# Plot expl_var
 png("images/expl_var_gen.png")
-plot(expl_var_gen) # visualizza la curv con un logaritmo
+plot(expl_var_gen)
 dev.off()
 
 png("images/expl_var_gen_hist.png")
